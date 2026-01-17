@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"flag"
 	"log"
 	"math"
 	"slices"
@@ -43,8 +44,10 @@ type ohlcRecord struct {
 var configuration *Configuration
 
 func main() {
+	strategyName := flag.String("strategy", "", "Restrict evaluation of strategies to the one matching this string")
+	flag.Parse()
 	loadConfiguration()
-	evaluateStrategies()
+	evaluateStrategies(*strategyName)
 }
 
 func loadConfiguration() {
@@ -52,9 +55,12 @@ func loadConfiguration() {
 	configuration.validate()
 }
 
-func evaluateStrategies() {
+func evaluateStrategies(strategyName string) {
 	fmt.Printf("\n")
 	for _, strategy := range configuration.Strategies {
+		if strategyName != "" && strategy.Name != strategyName {
+			continue
+		}
 		strategy.evaluate()
 	}
 }
@@ -92,6 +98,9 @@ func (s *Strategy) evaluate() {
 		timeStrings = append(timeStrings, timeString)
 	}
 	weekdayMatch := slices.Contains(weekdays, weekday)
+	if !weekdayMatch {
+		return
+	}
 	timeMatch := false
 	for _, t := range s.Times {
 		nextHour := now.Hour() + 1
@@ -101,7 +110,7 @@ func (s *Strategy) evaluate() {
 			break
 		}
 	}
-	momentumTime := now.Add(time.Duration(- s.Offset) * time.Hour)
+	momentumTime := now.Add(time.Duration(1 - s.Offset) * time.Hour)
 	truncatedTime := time.Date(
 		momentumTime.Year(),
 		momentumTime.Month(),
@@ -144,10 +153,10 @@ func (s *Strategy) evaluate() {
 	fmt.Printf("\tTimes: %s\n", strings.Join(timeStrings, ", "))
 	fmt.Printf("\tMomentum offset: %dh\n", s.Offset)
 	if s.GreaterThan != nil {
-		fmt.Printf("\tGreater than: %.1f%%\n", *s.GreaterThan)
+		fmt.Printf("\tGreater than: %.2f%%\n", *s.GreaterThan)
 	}
 	if s.LessThan != nil {
-		fmt.Printf("\tLess than: %.1f%%\n", *s.LessThan)
+		fmt.Printf("\tLess than: %.2f%%\n", *s.LessThan)
 	}
 	var sideString string
 	if s.Up {
@@ -159,11 +168,12 @@ func (s *Strategy) evaluate() {
 	fmt.Printf("\tCurrent price: %.4f\n", latestRecord.close)
 	if foundRecord {
 		fmt.Printf("\tMomentum price: %.4f\n", momentumRecord.close)
+		fmt.Printf("\tMomentum time: %s UTC\n", commons.GetTimeString(momentumRecord.timestamp))
 	} else {
 		fmt.Printf("\tMomentum price: %s\n", red("missing"))
 	}
 	fmt.Printf("\tCurrent weekday: %s (%s)\n", weekday, formatBool(weekdayMatch))
-	fmt.Printf("\tCurrent time of day: %02d:%02d (%s)\n", now.Hour(), now.Minute(), formatBool(timeMatch))
+	fmt.Printf("\tCurrent time of day: %02d:%02d UTC (%s)\n", now.Hour(), now.Minute(), formatBool(timeMatch))
 	fmt.Printf("\tCurrent momentum: %+.2f%% (%s)\n", momentum, formatBool(momentumMatch))
 	if weekdayMatch && timeMatch && momentumMatch {
 		fmt.Printf("\n\tAll conditions match, open \"%s\" position\n", sideString)
