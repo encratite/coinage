@@ -44,10 +44,10 @@ type ohlcRecord struct {
 var configuration *Configuration
 
 func main() {
-	strategyName := flag.String("strategy", "", "Restrict evaluation of strategies to the one matching this string")
+	strategyFilter := flag.String("strategy", "", "Restrict evaluation of strategies to ones whose names match this filter")
 	flag.Parse()
 	loadConfiguration()
-	evaluateStrategies(*strategyName)
+	evaluateStrategies(*strategyFilter)
 }
 
 func loadConfiguration() {
@@ -55,10 +55,10 @@ func loadConfiguration() {
 	configuration.validate()
 }
 
-func evaluateStrategies(strategyName string) {
+func evaluateStrategies(filter string) {
 	fmt.Printf("\n")
 	for _, strategy := range configuration.Strategies {
-		if strategyName != "" && strategy.Name != strategyName {
+		if filter != "" && !strings.Contains(strategy.Name, filter) {
 			continue
 		}
 		strategy.evaluate()
