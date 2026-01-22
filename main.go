@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"flag"
-	"log"
 	"math"
 	"slices"
 	"strings"
@@ -68,16 +67,16 @@ func evaluateStrategies(filter string) {
 func (c *Configuration) validate() {
 	for _, strategy := range c.Strategies {
 		if strategy.Name == "" {
-			log.Fatalf("Missing strategy name")
+			commons.Fatalf("Missing strategy name")
 		}
 		if strategy.Currency == "" {
-			log.Fatalf("Missing currency name for strategy %s", strategy.Name)
+			commons.Fatalf("Missing currency name for strategy %s", strategy.Name)
 		}
 		if strategy.Offset <= 0 {
-			log.Fatalf("Invalid offset for strategy %s", strategy.Name)
+			commons.Fatalf("Invalid offset for strategy %s", strategy.Name)
 		}
 		if strategy.GreaterThan == nil && strategy.LessThan == nil {
-			log.Fatalf("Missing momentum constraint for strategy %s", strategy.Name)
+			commons.Fatalf("Missing momentum constraint for strategy %s", strategy.Name)
 		}
 	}
 }
@@ -102,13 +101,19 @@ func (s *Strategy) evaluate() {
 		return
 	}
 	timeMatch := false
+	timeInRange := false
 	for _, t := range s.Times {
-		nextHour := now.Hour() + 1
 		hours := int(t.Hours())
-		if nextHour == hours {
+		if now.Hour() <= hours {
+			timeInRange = true
+		}
+		if now.Hour() + 1 == hours {
 			timeMatch = true
 			break
 		}
+	}
+	if timeInRange == false {
+		return
 	}
 	momentumTime := now.Add(time.Duration(1 - s.Offset) * time.Hour)
 	truncatedTime := time.Date(
@@ -193,26 +198,26 @@ func loadRecords(currency string) []ohlcRecord {
 	}
 	data, err := commons.DownloadJSON[[]json.RawMessage](url, parameters)
 	if err != nil {
-		log.Fatalf("Failed to download data from Binance: %v", err)
+		commons.Fatalf("Failed to download data from Binance: %v", err)
 	}
 	records := []ohlcRecord{}
 	for _, recordData := range data {
 		fields := []json.RawMessage{}
 		err := json.Unmarshal(recordData, &fields)
 		if err != nil {
-			log.Fatalf("Failed to unmarshal fields")
+			commons.Fatalf("Failed to unmarshal fields")
 		}
 		var recordUnixMilliseconds int64
 		err = json.Unmarshal(fields[0], &recordUnixMilliseconds)
 		if err != nil {
-			log.Fatalf("Failed to unmarshal UNIX timestamp")
+			commons.Fatalf("Failed to unmarshal UNIX timestamp")
 		}
 		timestamp := time.UnixMilli(recordUnixMilliseconds).UTC()
 		unmarshalFloat := func (index int) float64 {
 			var floatString string
 			err = json.Unmarshal(fields[index], &floatString)
 			if err != nil {
-				log.Fatalf("Failed to unmarshal UNIX timestamp")
+				commons.Fatalf("Failed to unmarshal UNIX timestamp")
 			}
 			value := commons.MustParseFloat(floatString)
 			return value
